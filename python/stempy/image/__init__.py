@@ -311,6 +311,10 @@ def electron_count(reader, darkreference, number_of_samples=40,
     if hasattr(darkreference, '_image'):
         darkreference = darkreference._image
 
+    # Check that the darkreference is the correct shape
+    if darkreference.shape != blocks[0].header.frame_dimensions:
+        raise ValueError("Dark reference shape doesn't match frame shape")
+
     res = _image.calculate_thresholds(
         [b._block for b in blocks], darkreference, number_of_samples,
         background_threshold_n_sigma, xray_threshold_n_sigma)
