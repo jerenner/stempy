@@ -63,6 +63,7 @@ RUN mkdir -p /build/vtk-m && \
   -DVTKm_ENABLE_OPENMP:BOOL=ON \
   -DVTKm_ENABLE_RENDERING:BOOL=OFF \
   -DVTKm_ENABLE_TESTING:BOOL=OFF \
+  -DVTKm_Vectorization=avx512-knl \
   /source/vtk-m-v1.5.0 . && \
   make -j4
 
@@ -74,6 +75,7 @@ RUN mkdir -p /build/stempy && \
   cmake -DCMAKE_BUILD_TYPE:STRING=Release \
   -Dstempy_ENABLE_VTKm:BOOL=ON \
   -DVTKm_DIR:PATH=/build/vtk-m/lib/cmake/vtkm-1.5 \
+  -DCMAKE_CXX_FLAGS="-march=knl" \
   /source/stempy . && \
   make -j4
 
