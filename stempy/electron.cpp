@@ -2,6 +2,7 @@
 #include "electronthresholds.h"
 #include "python/pyreader.h"
 #include "reader.h"
+#include "stemcuda/ecloop.h"
 
 #include "config.h"
 
@@ -787,6 +788,157 @@ ElectronCountedData electronCount(Reader* reader, int thresholdNumberOfBlocks,
     verbose);
 }
 
+
+// Functions employing the GPU.
+template <typename Reader>
+ElectronCountedData electronCountGPU(Reader* reader, const float darkReference[],
+                                  int thresholdNumberOfBlocks,
+                                  int numberOfSamples,
+                                  double backgroundThresholdNSigma,
+                                  double xRayThresholdNSigma,
+                                  const float gain[],
+                                  Dimensions2D scanDimensions, bool verbose)
+{
+  return electronCountGPU<Reader, uint16_t>(
+    reader, darkReference, thresholdNumberOfBlocks, numberOfSamples,
+    backgroundThresholdNSigma, xRayThresholdNSigma, gain, scanDimensions,
+    verbose);
+}
+
+template <typename Reader, typename FrameType, bool dark = true>
+ElectronCountedData electronCountGPU(Reader* reader, const float darkReference[],
+                                  int thresholdNumberOfBlocks,
+                                  int numberOfSamples,
+                                  double backgroundThresholdNSigma,
+                                  double xRayThresholdNSigma,
+                                  const float gain[],
+                                  Dimensions2D scanDimensions, bool verbose)
+{
+
+  bool debug = false;
+
+  // Frame dimensions (may want to set this from one of the headers).
+  Dimensions2D frameSize = { 576, 576 };
+
+  // Events object to store sparse matrices (vector of vector of int32).
+  Events events;
+
+  // Mutexes to protect writing to events object.
+  std::unique_ptr<std::mutex[]> positionMutexes;
+
+  bool done = false;
+
+  // Variables to keep track of the frames buffer.
+  int nfilled = 0;
+  bool buffer_full = true;   // set initially to full until allocation of memory is done
+  std::mutex buffer_mutex;
+  std::condition_variable cd_buffer_full;
+
+  // GPU processing parameters.
+  uint16_t device = 0;
+  uint32_t npixelsperframe = 576*576;
+  uint32_t nframesperproc = 6144;
+  uint16_t fsparse = 10;
+  uint16_t backgroundThreshold = 30; //backgroundThresholdNSigma;
+  uint16_t xRayThreshold = 479; // xRayThresholdNSigma;
+
+  // Allocate the buffers for the frames and image numbers.
+  uint64_t bytes_imgNums = nframesperproc*sizeof(int);
+
+  uint16_t *h_frames; // to be allocated in GPU thread
+  int      *h_imgNums = (int*) malloc(bytes_imgNums);
+
+  // Make space in the events object and position mutex array for all the frames.
+  int numberOfScanPositions = scanDimensions.first * scanDimensions.second;
+  events.resize(numberOfScanPositions);
+  positionMutexes.reset(new std::mutex[numberOfScanPositions]);
+
+  // Create the GPU threads.
+  if(debug) std::cout << "\n[MAIN THREAD] STARTING GPU THREAD..." << std::endl;
+  std::thread gpu_worker(gpu_proc, std::ref(h_frames), std::ref(h_imgNums),
+    std::ref(nfilled), std::ref(done),
+    std::ref(buffer_full), std::ref(buffer_mutex), std::ref(cd_buffer_full), std::ref(events), std::ref(positionMutexes),
+    device, npixelsperframe, nframesperproc, backgroundThreshold, xRayThreshold, fsparse);
+
+  // Get the buffer lock to ensure allocation is complete.
+  {
+    std::unique_lock<std::mutex> lk(buffer_mutex);
+    cd_buffer_full.wait(lk, [&buffer_full]{ return !buffer_full; });
+  }
+
+  // Create the reader threads.
+  auto read_functor = [&events, h_frames, h_imgNums, &npixelsperframe, &nframesperproc, &nfilled, &buffer_mutex, &buffer_full, &cd_buffer_full](Block& b) {
+
+    bool debug = false;
+
+    // Attempt to write to the buffer. (WILL NEED TO SUPPORT > 1 IMAGE NUMBER PER BLOCK)
+    {
+      if(debug) std::cout << "\n[READ THREAD] waiting for empty buffer..." << std::endl;
+      std::unique_lock<std::mutex> lk(buffer_mutex);
+      cd_buffer_full.wait(lk, [&buffer_full]{ return !buffer_full; });
+
+      // Write the block to the buffer.
+      uint16_t *data = b.data.get();
+      if(debug) std::cout << "\n[READ THREAD] writing block " << nfilled << " to buffer with data ptr " << data << std::endl;
+      std::copy(data, data + npixelsperframe, h_frames + nfilled*npixelsperframe);
+      // if(debug && nfilled == 10) {
+      //   for(int nn = 0; nn < npixelsperframe; nn++) std::cout << "[elem " << nn << "] = " << h_frames[nn + nfilled*npixelsperframe] << " ";
+      //   std::cout << "\n" << std::endl;
+      // }
+      if(b.header.imageNumbers.size() > 1) std::cout << "WARNING: multiple frames per block" << std::endl;
+      h_imgNums[nfilled] = b.header.imageNumbers[0];
+      nfilled++;
+
+      // If the buffer is full, set the buffer_full boolean and notify the GPU thread
+      if(nfilled >= nframesperproc) {
+        if(debug) std::cout << "\n[READ THREAD] Buffer full: setting flag" << std::endl;
+        buffer_full = true;
+        lk.unlock();
+        cd_buffer_full.notify_all();
+      }
+    }
+  };
+
+  // Pass the read functor to the reader.
+  if(debug) std::cout << "\n[MAIN THREAD] CREATING READER THREADS..." << std::endl;
+  std::future<void> read_done = reader->readAll(read_functor);
+
+  // Process the remaining frames, if there are any.
+  read_done.wait();
+  if(debug) std::cout << "\n[MAIN THREAD] Finished reading: performing final counts" << std::endl;
+  {
+    std::unique_lock<std::mutex> lk(buffer_mutex);
+    cd_buffer_full.wait(lk, [&buffer_full]{ return !buffer_full; });
+
+    // Notify all GPU threads to write what is left in their buffers and then end the run.
+    if(nfilled > 0) {
+      buffer_full = true;
+      done = true;
+      lk.unlock();
+      cd_buffer_full.notify_all();
+    }
+  }
+
+  // Wait for the GPU thread to finish.
+  gpu_worker.join();
+  if(debug) std::cout << "\n[MAIN THREAD] Done with counting: returning electron data object" << std::endl;
+
+  // Check on an event.
+  // std::cout << "Events object of size: " << events.size() << std::endl;
+  // std::vector<uint32_t>& evt = events[110];
+  // std::cout << "Event 110 is of size " << evt.size() << std::endl;
+  // for (int j = 0; j < evt.size(); j++) std::cout << " " << evt[j] << " ";
+
+  // Return the counted data.
+  ElectronCountedData ret;
+  ret.data = events;
+  ret.scanDimensions = scanDimensions;
+  ret.frameDimensions = frameSize;
+
+  return ret;
+}
+
+
 // Instantiate the ones that can be used
 
 // With gain and dark reference
@@ -960,4 +1112,11 @@ template ElectronCountedData electronCount(
   SectorStreamMultiPassThreadedReader* reader, int thresholdNumberOfBlocks,
   int numberOfSamples, double backgroundThresholdNSigma,
   double xRayThresholdNSigma, Dimensions2D scanDimensions, bool verbose);
+
+template ElectronCountedData electronCountGPU(
+  SectorStreamMultiPassThreadedReader* reader, const float darkreference[],
+  int thresholdNumberOfBlocks, int numberOfSamples,
+  double backgroundThresholdNSigma, double xRayThresholdNSigma,
+  const float gain[], Dimensions2D scanDimensions, bool verbose);
+
 }

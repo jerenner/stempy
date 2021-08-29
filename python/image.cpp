@@ -251,6 +251,18 @@ ElectronCountedDataPyArray electronCount(
                        xRayThresholdNSigma, scanDimensions, verbose);
 }
 
+ElectronCountedDataPyArray electronCountGPU(
+  SectorStreamMultiPassThreadedReader* reader, py::array_t<float> darkReference,
+  int thresholdNumberOfBlocks, int numberOfSamples,
+  double backgroundThresholdNSigma, double xRayThresholdNSigma,
+  py::array_t<float> gain, Dimensions2D scanDimensions, bool verbose)
+{
+  return electronCountGPU(reader, darkReference.data(), thresholdNumberOfBlocks,
+                       numberOfSamples, backgroundThresholdNSigma,
+                       xRayThresholdNSigma, gain.data(), scanDimensions,
+                       verbose);
+}
+
 // Explicitly instantiate version for py::array_t
 template std::vector<STEMImage> createSTEMImages(
   const std::vector<py::array_t<uint32_t>>& sparseData,
@@ -535,6 +547,12 @@ PYBIND11_MODULE(_image, m)
   m.def("electron_count",
         electronCountPy<SectorStreamMultiPassThreadedReader*, int, int, double,
                         double, Dimensions2D, bool>,
+        py::call_guard<py::gil_scoped_release>());
+  m.def("electron_count_gpu",
+        (ElectronCountedDataPyArray(*)(
+          SectorStreamMultiPassThreadedReader*, py::array_t<float>, int, int,
+          double, double, py::array_t<float>, Dimensions2D, bool)) &
+          electronCountGPU,
         py::call_guard<py::gil_scoped_release>());
 
   // Electron counting, without gain

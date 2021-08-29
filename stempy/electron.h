@@ -102,6 +102,14 @@ ElectronCountedData electronCount(
   double backgroundThresholdNSigma = 4, double xRayThresholdNSigma = 10,
   Dimensions2D scanDimensions = { 0, 0 }, bool verbose = false);
 
+
+template <typename Reader>
+ElectronCountedData electronCountGPU(
+  Reader* reader, const float darkreference[], int thresholdNumberOfBlocks = 1,
+  int numberOfSamples = 20, double backgroundThresholdNSigma = 4,
+  double xRayThresholdNSigma = 10, const float gain[] = nullptr,
+  Dimensions2D scanDimensions = { 0, 0 }, bool verbose = false);
+
 #ifdef USE_MPI
 
 void initMpiWorldRank(int& worldSize, int& rank);

@@ -418,6 +418,78 @@ def electron_count(reader, darkreference=None, number_of_samples=40,
 
     return electron_counted_data
 
+def electron_count_gpu(reader, darkreference=None, number_of_samples=40,
+                   background_threshold_n_sigma=4, xray_threshold_n_sigma=10,
+                   threshold_num_blocks=1, scan_dimensions=(0, 0),
+                   verbose=False, gain=None):
+    """Generate a list of coordinates of electron hits.
+
+    :param reader: the file reader that has already opened the data.
+    :type reader: stempy.io.reader
+    :param darkreference: the dark reference to subtract, potentially generated
+                          via stempy.image.calculate_average().
+    :type darkreference: stempy.image.ImageArray or stempy::Image<double>
+    :param number_of_samples: the number of samples to take when calculating
+                              the thresholds.
+    :type number_of_samples: int
+    :param background_threshold_n_sigma: N-Sigma used for calculating the
+                                         background threshold.
+    :type background_threshold_n_sigma: int
+    :param xray_threshold_n_sigma: N-Sigma used for calculating the X-Ray
+                                   threshold
+    :type xray_threshold_n_sigma: int
+    :param threshold_num_blocks: The number of blocks of data to use when
+                                 calculating the threshold.
+    :type threshold_num_blocks: int
+    :param scan_dimensions: the dimensions of the scan, where the order is
+                            (width, height). Required if `data` is a
+                            numpy.ndarray.
+    :type scan_dimensions: tuple of ints of length 2
+    :param verbose: whether or not to print out verbose output.
+    :type verbose: bool
+    :param gain: the gain mask to apply. Must match the frame dimensions
+    :type gain: numpy.ndarray (2D)
+
+    :return: the coordinates of the electron hits for each frame.
+    :rtype: ElectronCountedData (named tuple with fields 'data',
+            'scan_dimensions', and 'frame_dimensions')
+    """
+
+    # Special case for threaded reader
+    if isinstance(reader, (SectorThreadedReader, SectorThreadedMultiPassReader)):
+        args = [reader]
+
+        if darkreference is not None:
+            args = args + [darkreference]
+
+        # Now add the other args
+        args = args + [threshold_num_blocks, number_of_samples,
+                       background_threshold_n_sigma, xray_threshold_n_sigma]
+
+        # add the gain arg if we have been given one.
+        if gain is not None:
+            args.append(gain)
+
+        args = args + [scan_dimensions, verbose]
+
+        data = _image.electron_count_gpu(*args)
+    else:
+        print("ERROR: only threaded readers are supported")
+
+    electron_counted_data = namedtuple('ElectronCountedData',
+                                       ['data', 'scan_dimensions',
+                                        'frame_dimensions'])
+
+    # Convert to numpy array
+    electron_counted_data.data = np.array([np.array(x, copy=False) for x in data.data], dtype=np.object)
+    electron_counted_data.scan_dimensions = data.scan_dimensions
+    electron_counted_data.frame_dimensions = data.frame_dimensions
+
+    # Store a copy of the underlying C++ object in case we need it later
+    electron_counted_data._electron_counted_data = data
+
+    return electron_counted_data
+
 def radial_sum(reader, center=(-1, -1), scan_dimensions=(0, 0)):
     """Generate a radial sum from which STEM images can be generated.
 

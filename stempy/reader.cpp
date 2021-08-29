@@ -778,6 +778,7 @@ void SectorStreamThreadedReader::initNumberOfThreads()
 {
   if (m_threads < 1) {
     m_threads = std::thread::hardware_concurrency();
+    // std::cout << "SELECTED " << m_threads << " THREADS" << std::endl;
     // May not be able to determine
     if (m_threads == 0) {
       std::cout << "WARNING: Unable to determine hardware concurrency, "

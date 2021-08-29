@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.19)
-project(stempy)
+project(stempy C CXX CUDA)
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
@@ -89,9 +89,20 @@ if (stempy_ENABLE_HDF5)
   list(APPEND _libs hdf5::hdf5)
 endif()
 
+option(stempy_ENABLE_CUDA "Build with CUDA" ON)
+if (stempy_ENABLE_CUDA)
+  find_package(CUDA REQUIRED)
+  list(APPEND _src 
+    stemcuda/ecloop.cu
+  )
+  include_directories(
+    SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/stemcuda
+  )	       
+endif()
+
 option(stempy_ENABLE_VTKm "Build with VTK-m" OFF)
-cmake_dependent_option(stempy_ENABLE_CUDA "Enable VTK-m CUDA backend" OFF "stempy_ENABLE_VTKm" ON)
-cmake_dependent_option(stempy_ENABLE_OPENMP "Build VTK-m OpenMP backend" ON "stempy_ENABLE_VTKm" ON)
+cmake_dependent_option(stempy_ENABLE_CUDA "Enable VTK-m CUDA backend" ON "stempy_ENABLE_VTKm" OFF)
+cmake_dependent_option(stempy_ENABLE_OPENMP "Build VTK-m OpenMP backend" OFF "stempy_ENABLE_VTKm" OFF)
 if (stempy_ENABLE_VTKm)
   set(_components "")
   if(stempy_ENABLE_CUDA)
