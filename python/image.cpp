@@ -253,13 +253,14 @@ ElectronCountedDataPyArray electronCount(
 
 ElectronCountedDataPyArray electronCountGPU(
   SectorStreamMultiPassThreadedReader* reader, py::array_t<float> darkReference,
-  int thresholdNumberOfBlocks, int numberOfSamples,
-  double backgroundThresholdNSigma, double xRayThresholdNSigma,
-  py::array_t<float> gain, Dimensions2D scanDimensions, bool verbose)
+  int backgroundThreshold, int xRayThreshold,
+  int nframesperproc, int fsparse,
+  py::array_t<float> gain, Dimensions2D scanDimensions,
+  Dimensions2D frameDimensions, bool verbose)
 {
-  return electronCountGPU(reader, darkReference.data(), thresholdNumberOfBlocks,
-                       numberOfSamples, backgroundThresholdNSigma,
-                       xRayThresholdNSigma, gain.data(), scanDimensions,
+  return electronCountGPU(reader, darkReference.data(), backgroundThreshold,
+                       xRayThreshold, nframesperproc,
+                       fsparse, gain.data(), scanDimensions, frameDimensions,
                        verbose);
 }
 
@@ -551,7 +552,7 @@ PYBIND11_MODULE(_image, m)
   m.def("electron_count_gpu",
         (ElectronCountedDataPyArray(*)(
           SectorStreamMultiPassThreadedReader*, py::array_t<float>, int, int,
-          double, double, py::array_t<float>, Dimensions2D, bool)) &
+          int, int, py::array_t<float>, Dimensions2D, Dimensions2D, bool)) &
           electronCountGPU,
         py::call_guard<py::gil_scoped_release>());
 

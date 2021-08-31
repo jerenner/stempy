@@ -105,10 +105,11 @@ ElectronCountedData electronCount(
 
 template <typename Reader>
 ElectronCountedData electronCountGPU(
-  Reader* reader, const float darkreference[], int thresholdNumberOfBlocks = 1,
-  int numberOfSamples = 20, double backgroundThresholdNSigma = 4,
-  double xRayThresholdNSigma = 10, const float gain[] = nullptr,
-  Dimensions2D scanDimensions = { 0, 0 }, bool verbose = false);
+  Reader* reader, const float darkreference[], int backgroundThreshold = 30,
+  int xRayThreshold = 20, int nframesperproc = 6144,
+  int fsparse = 10, const float gain[] = nullptr,
+  Dimensions2D scanDimensions = { 0, 0 },
+  Dimensions2D frameDimensions = { 0, 0 }, bool verbose = false);
 
 #ifdef USE_MPI
 

@@ -418,36 +418,36 @@ def electron_count(reader, darkreference=None, number_of_samples=40,
 
     return electron_counted_data
 
-def electron_count_gpu(reader, darkreference=None, number_of_samples=40,
-                   background_threshold_n_sigma=4, xray_threshold_n_sigma=10,
-                   threshold_num_blocks=1, scan_dimensions=(0, 0),
-                   verbose=False, gain=None):
+def electron_count_gpu(reader, darkreference=None,
+                   background_threshold=4, xray_threshold=10,
+                   nframesperproc=40, fsparse=10, scan_dimensions=(0, 0),
+                   frame_dimensions=(0, 0), verbose=False, gain=None):
     """Generate a list of coordinates of electron hits.
+
 
     :param reader: the file reader that has already opened the data.
     :type reader: stempy.io.reader
-    :param darkreference: the dark reference to subtract, potentially generated
-                          via stempy.image.calculate_average().
+    :param darkreference: the dark reference (NOT CURRENTLY USED)
     :type darkreference: stempy.image.ImageArray or stempy::Image<double>
-    :param number_of_samples: the number of samples to take when calculating
-                              the thresholds.
-    :type number_of_samples: int
-    :param background_threshold_n_sigma: N-Sigma used for calculating the
-                                         background threshold.
-    :type background_threshold_n_sigma: int
-    :param xray_threshold_n_sigma: N-Sigma used for calculating the X-Ray
-                                   threshold
-    :type xray_threshold_n_sigma: int
-    :param threshold_num_blocks: The number of blocks of data to use when
-                                 calculating the threshold.
-    :type threshold_num_blocks: int
+    :param background_threshold: the background threshold
+    :type background_threshold: int
+    :param xray_threshold: the x-ray threshold
+    :type xray_threshold: int
+    :param nframesperproc: the number of frames per GPU processing (number of
+                            frames to process in 1 bunch on the GPUs)
+    :type nframesperproc: int
+    :param fsparse: the sparse factor (the sparse array allocated in the GPU
+                    will be 1/fsparse the size of the input frames array)
+    :type fsparse: int
     :param scan_dimensions: the dimensions of the scan, where the order is
                             (width, height). Required if `data` is a
                             numpy.ndarray.
     :type scan_dimensions: tuple of ints of length 2
+    :param frame_dimensions: the dimensions of the frame
+    :type scan_dimensions: tuple of ints of length 2
     :param verbose: whether or not to print out verbose output.
     :type verbose: bool
-    :param gain: the gain mask to apply. Must match the frame dimensions
+    :param gain: the gain mask to apply (NOT CURRENTLY USED)
     :type gain: numpy.ndarray (2D)
 
     :return: the coordinates of the electron hits for each frame.
@@ -463,14 +463,14 @@ def electron_count_gpu(reader, darkreference=None, number_of_samples=40,
             args = args + [darkreference]
 
         # Now add the other args
-        args = args + [threshold_num_blocks, number_of_samples,
-                       background_threshold_n_sigma, xray_threshold_n_sigma]
+        args = args + [background_threshold, xray_threshold,
+                       nframesperproc, fsparse]
 
         # add the gain arg if we have been given one.
         if gain is not None:
             args.append(gain)
 
-        args = args + [scan_dimensions, verbose]
+        args = args + [scan_dimensions, frame_dimensions, verbose]
 
         data = _image.electron_count_gpu(*args)
     else:
