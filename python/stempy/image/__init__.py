@@ -456,7 +456,7 @@ def electron_count_gpu(reader, darkreference=None,
     """
 
     # Special case for threaded reader
-    if isinstance(reader, (SectorThreadedReader, SectorThreadedMultiPassReader)):
+    if isinstance(reader, (SectorThreadedMultiPassReader)):
         args = [reader]
 
         if darkreference is not None:
