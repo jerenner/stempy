@@ -787,6 +787,40 @@ ElectronCountedData electronCount(Reader* reader, int thresholdNumberOfBlocks,
     verbose);
 }
 
+ElectronCountedData testMethodBasic(int test)
+{
+
+  Dimensions2D scanDimensions = { 0, 0 };
+  Dimensions2D frameSize = { 0, 0 };
+
+  Events events;
+  events.resize(10);
+
+  ElectronCountedData ret;
+  ret.data = events;
+  ret.scanDimensions = scanDimensions;
+  ret.frameDimensions = frameSize;
+
+  return ret;
+}
+
+ElectronCountedData testMethodArray(int test, const float test_arr[])
+{
+
+  Dimensions2D scanDimensions = { 0, 0 };
+  Dimensions2D frameSize = { 0, 0 };
+
+  Events events;
+  events.resize(10);
+
+  ElectronCountedData ret;
+  ret.data = events;
+  ret.scanDimensions = scanDimensions;
+  ret.frameDimensions = frameSize;
+
+  return ret;
+}
+
 // Instantiate the ones that can be used
 
 // With gain and dark reference

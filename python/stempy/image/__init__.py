@@ -282,6 +282,41 @@ def calculate_average(reader):
 
     return img
 
+def test_method_basic(test):
+    args = [test]
+    data = _image.test_method_basic(*args)
+
+    electron_counted_data = namedtuple('ElectronCountedData',
+                                       ['data', 'scan_dimensions',
+                                        'frame_dimensions'])
+
+    # Convert to numpy array
+    electron_counted_data.data = np.array([np.array(x, copy=False) for x in data.data], dtype=np.object)
+    electron_counted_data.scan_dimensions = data.scan_dimensions
+    electron_counted_data.frame_dimensions = data.frame_dimensions
+
+    # Store a copy of the underlying C++ object in case we need it later
+    electron_counted_data._electron_counted_data = data
+
+    return electron_counted_data
+
+def test_method_array(test, test_arr):
+    args = [test_arr, test]
+    data = _image.test_method_array(*args)
+
+    electron_counted_data = namedtuple('ElectronCountedData',
+                                       ['data', 'scan_dimensions',
+                                        'frame_dimensions'])
+
+    # Convert to numpy array
+    electron_counted_data.data = np.array([np.array(x, copy=False) for x in data.data], dtype=np.object)
+    electron_counted_data.scan_dimensions = data.scan_dimensions
+    electron_counted_data.frame_dimensions = data.frame_dimensions
+
+    # Store a copy of the underlying C++ object in case we need it later
+    electron_counted_data._electron_counted_data = data
+
+    return electron_counted_data
 
 def electron_count(reader, darkreference=None, number_of_samples=40,
                    background_threshold_n_sigma=4, xray_threshold_n_sigma=10,

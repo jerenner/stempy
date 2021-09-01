@@ -251,6 +251,12 @@ ElectronCountedDataPyArray electronCount(
                        xRayThresholdNSigma, scanDimensions, verbose);
 }
 
+ElectronCountedDataPyArray testMethodArray(
+  int test, py::array_t<float> test_arr)
+{
+  return testMethodArray(test, test_arr.data());
+}
+
 // Explicitly instantiate version for py::array_t
 template std::vector<STEMImage> createSTEMImages(
   const std::vector<py::array_t<uint32_t>>& sparseData,
@@ -273,6 +279,12 @@ template <typename... Params>
 ElectronCountedDataPyArray electronCountPy(Params&&... params)
 {
   return electronCount(std::forward<Params>(params)...);
+}
+
+template <typename... Params>
+ElectronCountedDataPyArray testMethodBasicPy(Params&&... params)
+{
+  return testMethodBasic(std::forward<Params>(params)...);
 }
 
 PYBIND11_MODULE(_image, m)
@@ -640,6 +652,15 @@ PYBIND11_MODULE(_image, m)
   m.def("electron_count",
         electronCountPy<PyReader::iterator&, PyReader::iterator&, double,
                         double, Dimensions2D>,
+        py::call_guard<py::gil_scoped_release>());
+
+
+  m.def("test_method_basic",
+        testMethodBasicPy<int>,
+        py::call_guard<py::gil_scoped_release>());
+  m.def("test_method_array",
+        (ElectronCountedDataPyArray(*)(int, py::array_t<float>)) &
+          testMethodArray,
         py::call_guard<py::gil_scoped_release>());
 
   // Calculate thresholds, with gain

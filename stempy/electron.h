@@ -102,6 +102,9 @@ ElectronCountedData electronCount(
   double backgroundThresholdNSigma = 4, double xRayThresholdNSigma = 10,
   Dimensions2D scanDimensions = { 0, 0 }, bool verbose = false);
 
+ElectronCountedData testMethodBasic(int test);
+ElectronCountedData testMethodArray(int test, const float test_arr[]);
+
 #ifdef USE_MPI
 
 void initMpiWorldRank(int& worldSize, int& rank);
