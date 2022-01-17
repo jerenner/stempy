@@ -52,6 +52,76 @@ Block::Block(const Header& h)
                     std::default_delete<uint16_t[]>())
 {}
 
+SharedMemoryReader::SharedMemoryReader(uint16_t sector, uint16_t max_number_of_images)
+{
+  m_sector = sector;
+  m_max_number_of_images = max_number_of_images;
+
+  // Set up pointers to the shared memory locations.
+  const int SIZE_HEADER = 432/2*sizeof(unsigned short int)*max_number_of_images;  // in bytes
+  int shm_fd_header = shm_open("headers", O_RDONLY, 0666); // create object
+  m_ptr_header = mmap(0, SIZE_HEADER, PROT_READ, MAP_SHARED, shm_fd_header, 0); // map the memory
+
+  // Create shared memory to store all images.
+  const int SIZE_IMAGES = 576*576/4*sizeof(unsigned short int)*max_number_of_images;  // in bytes
+  int shm_fd_image = shm_open("images", O_RDONLY, 0666); // create object
+  m_ptr_image = mmap(0, SIZE_IMAGES, PROT_READ, MAP_SHARED, shm_fd_image, 0); // map the memory
+
+  // Set to the first image.
+  m_img_offset = 0;
+
+}
+
+void SharedMemoryReader::reset()
+{
+  m_img_offset = 0;
+}
+
+Block SharedMemoryReader::read()
+{
+  if (atEnd())
+    return Block();
+
+  // Read the header for this image into a header_struct.
+  header_struct hstruct;
+  uint16_t* ptr_header = (uint16_t*) ((void*)m_ptr_header + (m_img_offset*432/2)*sizeof(uint16_t));
+  memcpy(&hstruct, ptr_header, sizeof(header_struct));
+
+  // Construct the header.
+  Header header;
+
+  header.imagesInBlock = 1;
+  header.frameDimensions = { 576, 576/4 };
+  header.version = 3;
+
+  header.scanNumber = hstruct.scan_number;
+  header.frameNumber = hstruct.frame_number;
+
+  header.scanDimensions.first = hstruct.nSTEM_positions_per_row_m1;
+  header.scanDimensions.second = hstruct.nSTEM_rows_m1;
+
+  uint16_t scanXPosition = hstruct.STEM_x_position_in_row;
+  uint16_t scanYPosition = hstruct.STEM_row_in_scan;
+  header.imageNumbers.push_back(scanYPosition * header.scanDimensions.first +
+                                scanXPosition);
+
+  // Construct a block from the header.
+  Block b(header);
+  auto dataSize = b.header.frameDimensions.first *
+                  b.header.frameDimensions.second * b.header.imagesInBlock;
+
+  // Read the image into the block data.
+  uint16_t* ptr_data = (uint16_t*) ((void*)m_ptr_image + (m_img_offset*576*576/4)*sizeof(uint16_t));
+  memcpy(b.data.get(), ptr_data, dataSize*sizeof(uint16_t));
+
+  // Increment the image offset.
+  m_img_offset += 1;
+
+  // Return the block.
+  return b;
+
+}
+
 StreamReader::StreamReader(const vector<string>& files, uint8_t version)
   : m_files(files), m_version(version)
 {

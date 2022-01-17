@@ -76,6 +76,18 @@ PYBIND11_MODULE(_io, m)
     .def("end",
          (StreamReader::iterator(StreamReader::*)()) & StreamReader::end);
 
+  py::class_<SharedMemoryReader::iterator>(m, "_shmem_reader_iterator")
+   .def(py::init<SharedMemoryReader*>());
+
+  py::class_<SharedMemoryReader>(m, "_shmem_reader")
+   .def(py::init<uint16_t, uint16_t>())
+   .def("read", (Block(SharedMemoryReader::*)()) & SharedMemoryReader::read)
+   .def("reset", &SharedMemoryReader::reset)
+   .def("begin",
+        (SharedMemoryReader::iterator(SharedMemoryReader::*)()) & SharedMemoryReader::begin)
+   .def("end",
+        (SharedMemoryReader::iterator(SharedMemoryReader::*)()) & SharedMemoryReader::end);
+
   py::class_<PyReader::iterator>(m, "_pyreader_iterator")
     .def(py::init<PyReader*>());
 

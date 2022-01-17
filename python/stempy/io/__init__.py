@@ -3,7 +3,7 @@ import numpy as np
 import h5py
 
 from stempy._io import (
-    _reader, _sector_reader, _pyreader, _threaded_reader,
+    _reader, _shmem_reader, _sector_reader, _pyreader, _threaded_reader,
     _threaded_multi_pass_reader
 )
 
@@ -49,6 +49,9 @@ class ReaderMixin(object):
 
 
 class Reader(ReaderMixin, _reader):
+    pass
+
+class SharedMemoryReader(ReaderMixin, _shmem_reader):
     pass
 
 class SectorReader(ReaderMixin, _sector_reader):
@@ -108,6 +111,10 @@ def reader(path, version=FileVersion.VERSION1, backend=None, **options):
                 raise Exception('The multi pass threaded reader only support file verison 5')
 
             reader = SectorThreadedMultiPassReader(path, **options)
+        elif backend == 'shmem':
+            reader = SharedMemoryReader(0, 1000)
+        elif backend == 'stream':
+            reader = Reader(path, 3)
         elif backend is None:
             reader = SectorReader(path, version)
         # Unrecognized backend

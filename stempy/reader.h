@@ -3,6 +3,10 @@
 
 #include "config.h"
 
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+
 #include <ThreadPool.h>
 #include <array>
 #include <atomic>
@@ -62,6 +66,34 @@ struct Header {
   Header& operator=(Header&& header) noexcept = default;
   Header(Dimensions2D frameDimensions, uint32_t imageNumInBlock,
          Dimensions2D scanDimensions, std::vector<uint32_t>& imageNumbers);
+};
+
+// Header structure for reading header from byte array.
+struct header_struct{
+  unsigned int key;
+  unsigned short int scan_coil_trigger_delay;
+  unsigned short int scan_coil_trigger_width;
+  unsigned short int npre_scan_triggers;
+  unsigned short int npauses_per_position;
+  unsigned short int nreadouts_per_position_m1;
+  unsigned short int nSTEM_positions_per_row_m1;
+  unsigned short int nSTEM_rows_m1;
+  unsigned short int nflyback_frames;
+  unsigned int scan_number;
+  unsigned int scan_frame_spacer[2];
+
+  unsigned int frame_number;
+  unsigned int frame_number_in_series;
+  unsigned short int STEM_frame_in_position;
+  unsigned short int STEM_x_position_in_row;
+  unsigned short int STEM_row_in_scan;
+  unsigned short int e_counting_threshold;
+  unsigned int frame_streering_bits_spacer[4];
+
+  unsigned char invalid_frame             : 1;
+  unsigned char valid_frame               : 1;
+  unsigned int  place_holder1             : 21;
+  unsigned char flush_memory_after_scan   : 1;
 };
 
 struct Block {
@@ -187,6 +219,40 @@ private:
 inline StreamReader::StreamReader(const std::string& path, uint8_t version)
   : StreamReader(std::vector<std::string>{ path }, version)
 {}
+
+class SharedMemoryReader
+{
+
+public:
+  SharedMemoryReader(uint16_t sector, uint16_t max_number_of_images);
+
+  Block read();
+
+  // Reset to the start of the first image
+  void reset();
+
+  typedef BlockIterator<SharedMemoryReader> iterator;
+  iterator begin() { return iterator(this); }
+  iterator end() { return iterator(nullptr); }
+
+private:
+  std::ifstream m_stream;
+  std::vector<std::string> m_files;
+  size_t m_curFileIndex = 0;
+  int m_version;
+  short m_sector = -1;
+  unsigned int m_img_offset = 0;
+  unsigned int m_max_number_of_images = 0;
+
+  // Pointers to the shared memory locations.
+  void* m_ptr_header;
+  void* m_ptr_image;
+
+  // Whether or not we are at the end of all of the images
+  bool atEnd() const { return (m_img_offset == m_max_number_of_images); }
+
+  short sector() { return m_sector; };
+};
 
 class SectorStreamReader
 {
